@@ -29,3 +29,15 @@ var Switcher = func ( w http.ResponseWriter, r *http.Request) ChanellResponse{
 	}
 	return channel
 }
+
+var SendMessage = func(w http.ResponseWriter,r http.Request) {
+	log.Println(r.RequestURI, r.Method)
+	channel := ChanellResponse{}
+	w.Header().Set("Content-Type", "application/json")
+	err := json.NewEncoder(w).Encode(&channel)
+	if err != nil {
+		log.Println(r.RequestURI, r.Method, err.Error())
+	}
+
+
+}

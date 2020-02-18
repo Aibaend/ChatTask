@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"time"
-	"encoding/json"
 	"github.com/gorilla/websocket"
 )
 
@@ -35,6 +34,7 @@ var upgrader = websocket.Upgrader{
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
+
 	hub *Hub
 
 	// The websocket connection.
@@ -119,14 +119,17 @@ func (c *Client) writePump() {
 
 // serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+	//adding ws
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+
 	client.hub.register <- client
 	status := Switcher(w,r)
+
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
@@ -134,5 +137,6 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		go client.readPump()
 	}else if status.Type =="unsub"{
 		client.conn.Close()
+
 	}
 }
