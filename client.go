@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
-	"github.com/gorilla/websocket"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -34,8 +36,7 @@ var upgrader = websocket.Upgrader{
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	channel uint
-	hub     *Hub
+	hub *Hub
 
 	// The websocket connection.
 	conn *websocket.Conn
@@ -50,7 +51,6 @@ type Client struct {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Client) readPump() {
-
 	defer func() {
 		c.hub.unregister <- c
 		c.conn.Close()
@@ -98,7 +98,9 @@ func (c *Client) writePump() {
 			}
 
 			w.Write(message)
-
+			if c.hub.broadcast == nil {
+				w.Write(<-c.hub.broadcast)
+			}
 			// Add queued chat messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
@@ -120,7 +122,6 @@ func (c *Client) writePump() {
 
 // serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	//adding ws
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
@@ -130,15 +131,13 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	status := Switcher(w, r)
 	if status.Type == "sub" {
 		client.hub.register <- client
-	}
-	if status.Type == "unsub" {
+	} else if status.Type == "unsub" {
 		client.hub.unregister <- client
+	} else {
+		client.hub.register <- client
 	}
-
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
-	client.conn.Close()
-
 }
