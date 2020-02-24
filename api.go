@@ -1,16 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
-	"encoding/json"
 )
 
 type ChanellResponse struct {
-	Type 		string  `json:"type"`
-	ChanellID 	string 	`json:"chanell_id"`
-	Message 	*Message `json:"message,omitempty"`
-
+	Type      string   `json:"type"`
+	ChanellID uint     `json:"chanell_id"`
+	Message   *Message `json:"message,omitempty"`
 }
 
 type Message struct {
@@ -19,7 +18,7 @@ type Message struct {
 	Message string `json:"message"`
 }
 
-var Switcher = func ( w http.ResponseWriter, r *http.Request) ChanellResponse{
+var Switcher = func(w http.ResponseWriter, r *http.Request) ChanellResponse {
 	log.Println(r.RequestURI, r.Method)
 	channel := ChanellResponse{}
 	w.Header().Set("Content-Type", "application/json")
@@ -30,7 +29,7 @@ var Switcher = func ( w http.ResponseWriter, r *http.Request) ChanellResponse{
 	return channel
 }
 
-var SendMessage = func(w http.ResponseWriter,r http.Request) {
+var SendMessage = func(w http.ResponseWriter, r http.Request) {
 	log.Println(r.RequestURI, r.Method)
 	channel := ChanellResponse{}
 	w.Header().Set("Content-Type", "application/json")
@@ -38,6 +37,5 @@ var SendMessage = func(w http.ResponseWriter,r http.Request) {
 	if err != nil {
 		log.Println(r.RequestURI, r.Method, err.Error())
 	}
-
 
 }

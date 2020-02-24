@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
+	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"time"
-	"github.com/gorilla/websocket"
 )
 
 const (
@@ -34,8 +34,8 @@ var upgrader = websocket.Upgrader{
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-
-	hub *Hub
+	channel uint
+	hub     *Hub
 
 	// The websocket connection.
 	conn *websocket.Conn
@@ -96,6 +96,7 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
+
 			w.Write(message)
 
 			// Add queued chat messages to the current websocket message.
@@ -126,17 +127,18 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
-
-	client.hub.register <- client
-	status := Switcher(w,r)
+	status := Switcher(w, r)
+	if status.Type == "sub" {
+		client.hub.register <- client
+	}
+	if status.Type == "unsub" {
+		client.hub.unregister <- client
+	}
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
-	if status.Type =="sub"{
-		go client.readPump()
-	}else if status.Type =="unsub"{
-		client.conn.Close()
+	go client.readPump()
+	client.conn.Close()
 
-	}
 }
