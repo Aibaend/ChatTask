@@ -8,7 +8,7 @@ import (
 
 type ChanellResponse struct {
 	Type      string   `json:"type"`
-	ChanellID uint     `json:"chanell_id"`
+	ChanellID string   `json:"chanell_id"`
 	Message   *Message `json:"message,omitempty"`
 }
 
@@ -18,7 +18,7 @@ type Message struct {
 	Message string `json:"message"`
 }
 
-var Switcher = func(w http.ResponseWriter, r *http.Request) ChanellResponse {
+var Response = func(w http.ResponseWriter, r *http.Request) ChanellResponse {
 	log.Println(r.RequestURI, r.Method)
 	channel := ChanellResponse{}
 	w.Header().Set("Content-Type", "application/json")
@@ -41,4 +41,12 @@ var SendMessage = func(w http.ResponseWriter, r *http.Request, hub *Hub) {
 		hub.broadcast <- []byte(channel.Message.Message)
 	}
 
+}
+
+func (manager *Hub) send(message []byte, ignore *Client) {
+	for conn := range manager.clients {
+		if conn != ignore {
+			conn.send <- message
+		}
+	}
 }

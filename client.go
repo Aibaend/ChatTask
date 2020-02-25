@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -36,7 +36,8 @@ var upgrader = websocket.Upgrader{
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	hub *Hub
+	channels []string
+	hub      *Hub
 
 	// The websocket connection.
 	conn *websocket.Conn
@@ -50,15 +51,30 @@ type Client struct {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Client) readPump() {
+func (c *Client) readPump(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
+
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	status := Response(w, r)
+	if status.Type == "sub" {
+		if !itemExists(c.channels, status.ChanellID) {
+			c.channels = append(c.channels, status.ChanellID)
+		}
+	}
+	if status.Type == "unsub" {
+		if itemExists(c.channels, status.ChanellID) {
+			id := sort.SearchStrings(c.channels, status.ChanellID)
+			c.channels = RemoveIndex(c.channels, id)
+		}
+	}
+
 	for {
+
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -67,6 +83,7 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+
 		c.hub.broadcast <- message
 	}
 }
@@ -127,17 +144,11 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
-	status := Switcher(w, r)
-	if status.Type == "sub" {
-		client.hub.register <- client
-	} else if status.Type == "unsub" {
-		client.hub.unregister <- client
-	} else {
-		client.hub.register <- client
-	}
+
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
-	go client.readPump()
+	go client.readPump(w, r)
 }
